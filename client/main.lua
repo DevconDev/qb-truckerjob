@@ -301,6 +301,83 @@ RegisterNetEvent('QBCore:Client:OnJobUpdate', function(JobInfo)
     end
 end)
 
+-- Toggle Duty in an event.
+RegisterNetEvent('qb-truckerjob:ToggleDuty', function()
+    onDuty = not onDuty
+    TriggerServerEvent("QBCore:ToggleDuty")
+end)
+
+if Config.UseTarget then
+    CreateThread(function()
+        -- Toggle Duty
+        for k, v in pairs(Config.Locations["duty"]) do
+            exports['qb-target']:AddBoxZone("TruckerDuty_"..k, vector3(v.x, v.y, v.z), 1, 1, {
+                name = "TruckerDuty_"..k,
+                heading = 55,
+                debugPoly = true,
+                minZ = v.z - 4.6,
+                maxZ = v.z + 8.6,
+            }, {
+                options = {
+                    {
+                        type = "client",
+                        event = "qb-truckerjob:ToggleDuty",
+                        icon = "fas fa-sign-in-alt",
+                        label = "Sign In",
+                        job = "trucker",
+                    },
+                },
+                distance = 1.5
+            })
+        end
+
+    end)
+
+else
+    -- Toggle Duty
+    local dutyZones = {}
+    for _, v in pairs(Config.Locations["duty"]) do
+        dutyZones[#dutyZones+1] = BoxZone:Create(
+            vector3(vector3(v.x, v.y, v.z)), 1, 1.75, {
+            name="box_zone",
+            debugPoly = false,
+            minZ = v.z - 1,
+            maxZ = v.z + 1,
+        })
+    end
+
+    local dutyCombo = ComboZone:Create(dutyZones, {name = "dutyCombo", debugPoly = false})
+    dutyCombo:onPlayerInOut(function(isPointInside)
+        if isPointInside then
+            inDuty = true
+            if not onDuty then
+                exports['qb-core']:DrawText(Lang:t('info.on_duty'),'left')
+            else
+                exports['qb-core']:DrawText(Lang:t('info.off_duty'),'left')
+            end
+        else
+            inDuty = false
+            exports['qb-core']:HideText()
+        end
+    end)
+
+    -- Toggle Duty Thread
+    CreateThread(function ()
+        Wait(1000)
+        while true do
+            local sleep = 1000
+            if inDuty and PlayerJob.name == "truckerjob" then
+                sleep = 5
+                if IsControlJustReleased(0, 38) then
+                    onDuty = not onDuty
+                    TriggerServerEvent("QBCore:ToggleDuty")
+                end
+            end
+            Wait(sleep)
+        end
+    end)
+end
+
 RegisterNetEvent('qb-truckerjob:client:ShowMarker', function(active)
     if PlayerJob.name == "trucker" then
         showMarker = active
