@@ -10,11 +10,18 @@ local currentCount = 0
 local CurrentPlate = nil
 local selectedVeh = nil
 local TruckVehBlip = nil
+local TruckerBlip = nil
 local Delivering = false
 local showMarker = false
 local markerLocation
+local returningToStation = false
 
 -- Functions
+
+local function returnToStation()
+    SetBlipRoute(TruckVehBlip, true)
+    returningToStation = true
+end
 
 local function hasDoneLocation(locationId)
     if LocationsDone and table.type(LocationsDone) ~= "empty" then
@@ -64,15 +71,19 @@ local function isTruckerVehicle(vehicle)
 end
 
 local function RemoveTruckerBlips()
+    ClearAllBlipRoutes()
     if TruckVehBlip then
         RemoveBlip(TruckVehBlip)
-	    ClearAllBlipRoutes()
         TruckVehBlip = nil
+    end
+
+    if TruckerBlip then
+        RemoveBlip(TruckerBlip)
+        TruckerBlip = nil
     end
 
     if CurrentBlip then
         RemoveBlip(CurrentBlip)
-	    ClearAllBlipRoutes()
         CurrentBlip = nil
     end
 end
@@ -240,7 +251,7 @@ local function getNewLocation()
         QBCore.Functions.Notify(Lang:t("success.payslip_time"))
         if CurrentBlip ~= nil then
             RemoveBlip(CurrentBlip)
-	        ClearAllBlipRoutes()
+            ClearAllBlipRoutes()
             CurrentBlip = nil
         end
     end
@@ -257,7 +268,7 @@ local function CreateElements()
     AddTextComponentSubstringPlayerName(Config.Locations["vehicle"].label)
     EndTextCommandSetBlipName(TruckVehBlip)
 
-    local TruckerBlip = AddBlipForCoord(Config.Locations["main"].coords.x, Config.Locations["main"].coords.y, Config.Locations["main"].coords.z)
+    TruckerBlip = AddBlipForCoord(Config.Locations["main"].coords.x, Config.Locations["main"].coords.y, Config.Locations["main"].coords.z)
     SetBlipSprite(TruckerBlip, 479)
     SetBlipDisplay(TruckerBlip, 4)
     SetBlipScale(TruckerBlip, 0.6)
@@ -333,7 +344,6 @@ local function Deliver()
         if currentCount == CurrentLocation.dropcount then
             LocationsDone[#LocationsDone+1] = CurrentLocation.id
             TriggerServerEvent("qb-shops:server:RestockShopItems", CurrentLocation.store)
-            QBCore.Functions.Notify(Lang:t("mission.goto_next_point"))
             exports['qb-core']:HideText()
             Delivering = false
             showMarker = false
@@ -347,7 +357,13 @@ local function Deliver()
             CurrentLocation = nil
             currentCount = 0
             JobsDone = JobsDone + 1
-            getNewLocation()
+            if JobsDone == Config.MaxDrops then
+                QBCore.Functions.Notify(Lang:t("mission.return_to_station"))
+                returnToStation()
+            else
+                QBCore.Functions.Notify(Lang:t("mission.goto_next_point"))
+                getNewLocation()
+            end
         else
             QBCore.Functions.Notify(Lang:t("mission.another_box"))
         end
@@ -528,6 +544,11 @@ RegisterNetEvent('qb-truckerjob:client:Vehicle', function()
                     RemoveBlip(CurrentBlip)
                     ClearAllBlipRoutes()
                     CurrentBlip = nil
+                end
+                if returningToStation or CurrentLocation then
+                    ClearAllBlipRoutes()
+                    returningToStation = false
+                    QBCore.Functions.Notify(Lang:t("mission.job_completed"), "success")
                 end
             else
                 QBCore.Functions.Notify(Lang:t("error.vehicle_not_correct"), 'error')
